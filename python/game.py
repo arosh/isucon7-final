@@ -358,7 +358,7 @@ def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> 
 
         total_milli_isu = 0
 
-        cur.execute("SELECT SUM(isu) FROM adding WHERE room_name = %s AND time <= %s",
+        cur.execute("SELECT isu FROM adding WHERE room_name = %s AND time <= %s",
                     (room_name, req_time))
         for (isu,) in cur:
             total_milli_isu += int(isu) * 1000
