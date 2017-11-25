@@ -46,6 +46,15 @@ def main():
     app.router.add_static('/', path=public_dir, name="static")
     web.run_app(app, host='0.0.0.0', port=5000)
 
+app = web.Application()
+app.router.add_get("/initialize", initialize_handler)
+app.router.add_get("/room/{room_name}", room_handler)
+app.router.add_get("/room/", room_handler)
+app.router.add_get("/ws/{room_name}", game_handler)
+app.router.add_get("/ws/", game_handler)
+app.router.add_get('/', index_handler)
+app.router.add_static('/', path=public_dir, name="static")
+
 
 if __name__ == '__main__':
     main()
