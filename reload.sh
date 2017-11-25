@@ -24,6 +24,11 @@ fi
 #  cp conf/my.cnf /etc/mysql/my.cnf
 #fi
 
+# Python
+if [ -e conf/cco.python.service ]; then
+  cp conf/cco.python.service /etc/systemd/system/cco.python.service
+fi
+
 # system
 #if [ -e conf/sysctl.conf ]; then
 #  cp conf/sysctl.conf /etc/sysctl.conf
@@ -42,5 +47,5 @@ fi
 
 systemctl daemon-reload
 systemctl reload nginx
-systemctl restart mysql
-journalctl -f -u nginx -u mysql
+systemctl restart mysql cco.python
+journalctl -f -u nginx -u mysql -u cco.python
