@@ -2,16 +2,16 @@
 ranking_count = 20
 
 # Top Slow Requests
-slow_count = 37
+# slow_count = 37
 
 # Show Standard Deviation column
-show_stddev = true
+# show_stddev = true
 
 # Show HTTP Status Code columns
 show_status_code = true
 
 # Percentiles
-percentiles = [ 50.0, 90.0, 95.0, 99.0 ]
+# percentiles = [ 50.0, 90.0, 95.0, 99.0 ]
 
 # for Nginx($request_time)
 scale = 0
@@ -44,14 +44,26 @@ duration_index = 10
 
 # You can aggregate requests by regular expression
 # For overview of regexp syntax: https://golang.org/pkg/regexp/syntax/
-[[bundle]]
-regexp = '^(GET|HEAD) /memo/[0-9]+\b'
-name = "get memo"
+#[[bundle]]
+#regexp = '^(GET|HEAD) /memo/[0-9]+\b'
+#name = "get memo"
+
+#[[bundle]]
+#regexp = '^(GET|HEAD) /stylesheets/'
+#name = "stylesheets"
+
+#[[bundle]]
+#regexp = '^(GET|HEAD) /images/'
+#name = "images"
 
 [[bundle]]
-regexp = '^(GET|HEAD) /stylesheets/'
-name = "stylesheets"
+regexp = '^GET /room/'
+name = "GET /room/*"
 
 [[bundle]]
-regexp = '^(GET|HEAD) /images/'
-name = "images"
+regexp = '^GET /images/'
+name = "GET /images/*"
+
+[[bundle]]
+regexp = '^GET /ws/'
+name = "GET /ws/*"
