@@ -79,16 +79,25 @@ def calc_item_price(m: dict, count : int) -> int:
     d = m['price4']
     return (c * count + 1) * (d ** (a * count + b))
 
+p15 = 100000 * 100000 * 100000
 
 # JSON中で利用する10進指数表記
 # [x, y] = x * 10^y
 def int2exp(x: int) -> (int, int):
-    s = str(x)
-    if not s:
-        return (0, 0)
-    if len(s) <= 15:
+#    s = str(x)
+#    if not s:
+#        return (0, 0)
+#    if len(s) <= 15:
+#        return (x, 0)
+#    return (int(s[:15]), len(s)-15)
+    if (x < p15):
         return (x, 0)
-    return (int(s[:15]), len(s)-15)
+    keta = 0
+    while (x >= p15):
+        x //= 10
+        keta += 1
+    return (x, keta)
+    
 
 
 def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
