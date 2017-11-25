@@ -130,7 +130,9 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list, r
         if b.time <= current_time:
             m = mitems[b.item_id]
             item_bought[b.item_id] += 1
+            redis_client.incr("item_bought:{0}:{1}".format(room_name, b.item_id))
             total_milli_isu -= calc_item_price(m, b.ordinal) * 1000
+
             item_built[b.item_id] += 1
             power = calc_item_power(m, item_bought[b.item_id])
             item_power[b.item_id] += power
@@ -140,6 +142,15 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list, r
             buying_at[b.time].append(b)
 
     for item_id, m in mitems.items():
+        tmp = redis_client.get("item_bought:{0}:{1}".format(room_name, item_id))
+        if tmp is None:
+            redis_client.set("item_bought:{0}:{1}".format(room_name, item_id), 0)
+            item_bought[item_id] = 0
+            item_built[item_id] = 0
+        else:
+            item_bought[item_id] = int(tmp)
+            item_built[item_id] = int(tmp)
+
         item_power0[item_id] = int2exp(item_power[item_id])
         item_built0[item_id] = item_built[item_id]
         price = calc_item_price(m, item_bought[item_id]+1)
@@ -232,6 +243,7 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list, r
             item_building[item_id],
         ) for item_id in mitems]
 
+    # print(gs_items)
     gs_on_sale = [OnSale(id, t) for id, t in item_on_sale.items()]
 
     return GameStatus(
