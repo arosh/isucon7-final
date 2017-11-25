@@ -203,10 +203,9 @@ def update_room_time(conn, room_name: str, req_time: int) -> int:
     cur = conn.cursor()
 
     # See page 13 and 17 in https://www.slideshare.net/ichirin2501/insert-51938787
-    cur.execute("INSERT INTO room_time(room_name, time) VALUES (%s, 0) ON DUPLICATE KEY UPDATE time = time",
-                (room_name,))
+    cur.execute("INSERT INTO room_time(room_name, time) VALUES (%s, 0) ON DUPLICATE KEY UPDATE time = time", (room_name, ))
 
-    cur.execute("SELECT time FROM room_time WHERE room_name = %s FOR UPDATE", (room_name,))
+    cur.execute("SELECT time FROM room_time WHERE room_name = %s FOR UPDATE", (room_name, ))
     room_time = cur.fetchone()[0]
 
     current_time = get_current_time(conn)
@@ -220,6 +219,17 @@ def update_room_time(conn, room_name: str, req_time: int) -> int:
     cur.execute("UPDATE room_time SET time = %s WHERE room_name = %s", (current_time, room_name))
     return current_time
 
+
+def update_room_time_shared_lock(conn, room_name: str) -> int:
+    cur = conn.cursor()
+    cur.execute("INSERT INTO room_time(room_name, time) VALUES (%s, 0) ON DUPLICATE KEY UPDATE time = time", (room_name, ))
+    cur.execute("SELECT time FROM room_time WHERE room_name = %s LOCK IN SHARE MODE", (room_name, ))
+    current_time = get_current_time(conn)
+    return current_time
+
+def update_room_time_shared_lock_end(conn, room_name: str, current_time: int):
+    cur = conn.cursor()
+    cur.execute("UPDATE room_time SET time = %s WHERE room_name = %s", (current_time, room_name))
 
 def add_isu_profile(room_name: str, req_time: int, num_isu: int) -> bool:
     profiler = start_profile()
@@ -338,7 +348,7 @@ def get_status_profile(room_name: str) -> dict:
 def get_status(room_name: str) -> dict:
     conn = connect_db()
     try:
-        current_time = update_room_time(conn, room_name, 0)
+        current_time = update_room_time_shared_lock(conn, room_name)
 
         dcur = conn.cursor(MySQLdb.cursors.DictCursor)
         dcur.execute("SELECT * FROM m_item")
@@ -351,6 +361,8 @@ def get_status(room_name: str) -> dict:
 
         cur.execute("SELECT item_id, ordinal, time FROM buying WHERE room_name=%s", (room_name,))
         buyings = [Buying(i, o, t) for (i, o, t) in cur]
+
+        update_room_time_shared_lock_end(conn, room_name, current_time)
 
         conn.commit()
 
