@@ -221,8 +221,15 @@ def update_room_time(conn, room_name: str, req_time: int) -> int:
     return current_time
 
 
-def add_isu(room_name: str, req_time: int, num_isu: int) -> bool:
+def add_isu_profile(room_name: str, req_time: int, num_isu: int) -> bool:
     profiler = start_profile()
+    try:
+        add_isu(room_name, req_time, num_isu)
+    finally:
+        end_profile(profiler)
+
+
+def add_isu(room_name: str, req_time: int, num_isu: int) -> bool:
     #print(f"add_isu(room_name={room_name}, req_time={req_time})")
     conn = connect_db()
     try:
@@ -247,11 +254,17 @@ def add_isu(room_name: str, req_time: int, num_isu: int) -> bool:
         return True
     finally:
         conn.close()
+
+
+def buy_item_profile(room_name: str, req_time: int, item_id: int, count_bought: int) -> bool:
+    profiler = start_profile()
+    try:
+        buy_item(room_name, req_time, item_id, count_bought)
+    finally:
         end_profile(profiler)
 
 
 def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> bool:
-    profiler = start_profile()
     #print(f"buy_item({room_name}, {req_time}, {item_id}, {count_bought})")
     conn = connect_db()
     try:
@@ -305,7 +318,6 @@ def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> 
         return True
     finally:
         conn.close()
-        end_profile(profiler)
 
 
 def get_current_time(conn) -> int:
@@ -315,8 +327,15 @@ def get_current_time(conn) -> int:
     return t
 
 
-def get_status(room_name: str) -> dict:
+def get_status_profile(room_name: str) -> dict:
     profiler = start_profile()
+    try:
+        return get_status(room_name)
+    finally:
+        end_profile(profiler)
+
+
+def get_status(room_name: str) -> dict:
     conn = connect_db()
     try:
         current_time = update_room_time(conn, room_name, 0)
@@ -341,7 +360,6 @@ def get_status(room_name: str) -> dict:
         return status
     finally:
         conn.close()
-        end_profile(profiler)
 
 import cProfile
 profile_dir = '/tmp/profile'
@@ -359,7 +377,7 @@ def end_profile(profiler):
 async def serve(ws: 'aiohttp.web.WebSocketResponse', room_name: str):
     loop = asyncio.get_event_loop()
 
-    status: dict = await loop.run_in_executor(None, get_status, room_name)
+    status: dict = await loop.run_in_executor(None, get_status_profile, room_name)
     last_status_time = time.time()
     await ws.send_json(status, dumps=simplejson.dumps)
 
@@ -367,7 +385,7 @@ async def serve(ws: 'aiohttp.web.WebSocketResponse', room_name: str):
         # 0.5 秒ごとに status を送る
         timeout = (last_status_time + 0.5) - time.time()
         if timeout < 0:
-            status: dict = await loop.run_in_executor(None, get_status, room_name)
+            status: dict = await loop.run_in_executor(None, get_status_profile, room_name)
             last_status_time = time.time()
             await ws.send_json(status, dumps=simplejson.dumps)
             continue
@@ -384,20 +402,20 @@ async def serve(ws: 'aiohttp.web.WebSocketResponse', room_name: str):
 
         if action == "addIsu":
             # クライアントからは isu は文字列で送られてくる
-            success = await loop.run_in_executor(None, add_isu, room_name, reqtime, int(request["isu"]))
+            success = await loop.run_in_executor(None, add_isu_profile, room_name, reqtime, int(request["isu"]))
         elif action == "buyItem":
             # count bought はその item_id がすでに買われている数.
             # count bought+1 個目を新たに買うことになる
             item_id = int(request["item_id"])
             count_bought = int(request["count_bought"])
-            success = await loop.run_in_executor(None, buy_item, room_name, reqtime, item_id, count_bought)
+            success = await loop.run_in_executor(None, buy_item_profile, room_name, reqtime, item_id, count_bought)
         else:
             print(f"Invalid action: {action}")
             await ws.close()
             return
 
         if success:
-            status = await loop.run_in_executor(None, get_status, room_name)
+            status = await loop.run_in_executor(None, get_status_profile, room_name)
             last_status_time = time.time()
             await ws.send_json(status, dumps=simplejson.dumps)
         #else:
