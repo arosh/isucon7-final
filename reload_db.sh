@@ -30,11 +30,11 @@ if [ -e conf/cco.python.service ]; then
 fi
 
 # system
-if [ -e conf/sysctl.conf ]; then
-  cp conf/sysctl.conf /etc/sysctl.conf
-fi
-sysctl -p
-
+#if [ -e conf/sysctl.conf ]; then
+#  cp conf/sysctl.conf /etc/sysctl.conf
+#  sysctl -p
+#fi
+#
 #if [ -e conf/limits.conf ]; then
 #  cp conf/limits.conf /etc/security/limits.conf
 #fi
