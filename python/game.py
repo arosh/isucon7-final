@@ -346,7 +346,6 @@ def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> 
     try:
         update_room_time(conn, room_name, req_time)
         cur = conn.cursor()
-        dcur = conn.cursor(MySQLdb.cursors.DictCursor)
 
         cur.execute("SELECT COUNT(*) FROM buying WHERE room_name = %s AND item_id = %s",
                     (room_name, item_id))
@@ -359,20 +358,40 @@ def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> 
 
         total_milli_isu = 0
 
-        cur.execute("SELECT isu FROM adding WHERE room_name = %s AND time <= %s",
+        cur.execute("SELECT SUM(isu) FROM adding WHERE room_name = %s AND time <= %s",
                     (room_name, req_time))
         for (isu,) in cur:
             total_milli_isu += int(isu) * 1000
 
-        cur.execute("SELECT item_id, ordinal, time FROM buying WHERE room_name = %s", (room_name,))
-        buyings = cur.fetchall()
-        for (buy_item_id, ordinal, item_time) in buyings:
-            dcur.execute("SELECT * FROM m_item WHERE item_id=%s", (buy_item_id,))
-            mitem = dcur.fetchone()
-            cost = calc_item_price(mitem, ordinal)
+        sql = '''
+        SELECT
+            buying.item_id AS item_id,
+            buying.ordinal AS ordinal,
+            buying.time AS time,
+            m_item.power1 AS power1,
+            m_item.power2 AS power2,
+            m_item.power3 AS power3,
+            m_item.power4 AS power4,
+            m_item.price1 AS price1,
+            m_item.price2 AS price2,
+            m_item.price3 AS price3,
+            m_item.price4 AS price4
+        FROM buying
+        JOIN m_item ON m_item.item_id = buying.item_id
+        WHERE buying.room_name = %s
+        '''
+        dcur = conn.cursor(MySQLdb.cursors.DictCursor)
+        dcur.execute(sql, (room_name, ))
+        buyings = dcur.fetchall()
+        # for (buy_item_id, ordinal, item_time) in buyings:
+        for buying in buyings:
+            buy_item_id = buying['item_id']
+            ordinal = buying['ordinal']
+            item_time = buying['time']
+            cost = calc_item_price(buying, ordinal)
             total_milli_isu -= cost * 1000
             if item_time < req_time:
-                power = calc_item_power(mitem, ordinal)
+                power = calc_item_power(buying, ordinal)
                 total_milli_isu += power * (req_time - item_time)
 
         dcur.execute("SELECT * FROM m_item WHERE item_id=%s", (item_id,))
