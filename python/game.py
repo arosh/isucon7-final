@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import time
+import redis
 
 # namedtuple を dict として出力するために標準ライブラリの json ではなく
 # simplejson を使います。
@@ -22,6 +23,15 @@ Buying = namedtuple("Buying", ("item_id", "ordinal", "time"))
 
 
 _db_info = None
+
+REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
+REDIS_POOL = redis.ConnectionPool(host=REDIS_HOST, port=REDIS_PORT, db=0)
+
+
+def get_redis():
+    return redis.StrictRedis(connection_pool=REDIS_POOL)
+
 
 def connect_db():
     """MySQLに接続して connection object を返す"""
@@ -82,10 +92,18 @@ def int2exp(x: int) -> (int, int):
     return (int(s[:15]), len(s)-15)
 
 
-def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
+def calc_status(current_time: int, mitems: dict, addings: list, buyings: list, room_name: str, last_updated_at: int):
     # 1ミリ秒に生産できる椅子の単位をミリ椅子とする
+    redis_client = get_redis()
     total_milli_isu : int = 0
+    tmp = redis_client.get("total_milli_isu:%s" % room_name)
+    if tmp is not None:
+        total_milli_isu = int(tmp)
+
     total_power : int = 0
+    tmp = redis_client.get("total_power:%s" % room_name)
+    if tmp is not None:
+        total_power = int(tmp)
 
     item_power = {itemID: 0 for itemID in mitems}  # ItemID: power
     item_price = {}  # ItemID: price
@@ -100,18 +118,19 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
     adding_at = {}
     buying_at = defaultdict(list)
 
+
     for a in addings:
         if a.time <= current_time:
             total_milli_isu += int(a.isu) * 1000
         else:
             adding_at[a.time] = a
 
+    total_milli_isu += int(total_power) * (int(current_time) - int(last_updated_at))
     for b in buyings:
-        m = mitems[b.item_id]
-        item_bought[b.item_id] += 1
-        total_milli_isu -= calc_item_price(m, b.ordinal) * 1000
-
         if b.time <= current_time:
+            m = mitems[b.item_id]
+            item_bought[b.item_id] += 1
+            total_milli_isu -= calc_item_price(m, b.ordinal) * 1000
             item_built[b.item_id] += 1
             power = calc_item_power(m, item_bought[b.item_id])
             item_power[b.item_id] += power
@@ -131,15 +150,17 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
 
     # current_time の状態
     schedule = [Schedule(current_time, int2exp(total_milli_isu), int2exp(total_power))]
+    redis_client.set("total_power:{0}".format(room_name), total_power)
+    redis_client.set("total_milli_isu:{0}".format(room_name), total_milli_isu)
 
     ts = set()
     ts.add(0)
     for t in adding_at.keys():
-        if (t <= current_time + 1000):
+        if t <= current_time + 1000:
             ts.add(t)
     
     for t in buying_at.keys():
-        if (t <= current_time + 1000):
+        if t <= current_time + 1000:
             ts.add(t)
     
     ts = list(sorted(ts))
@@ -149,7 +170,7 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
     for i in range(N):
         t = ts[i]
         nt = current_time + 1001
-        if (i+1 < N):
+        if i+1 < N:
             nt = ts[i+1]
         
         total_milli_isu += total_power * (t - ct)
@@ -198,44 +219,6 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
                         l = mid
                 item_on_sale[id] = r
 
-#    # current_time+1000 までの状態
-#    for t in range(current_time+1, current_time+1001):
-#        total_milli_isu += total_power
-#        updated = False
-#
-#        if t in adding_at:
-#            updated = True
-#            total_milli_isu += int(adding_at[t].isu) * 1000
-#
-#        if t in buying_at:
-#            updated = True
-#            updated_ids = set()
-#
-#            for b in buying_at[t]:
-#                m = mitems[b.item_id]
-#                updated_ids.add(b.item_id)
-#                item_built[b.item_id] += 1
-#
-#                power = calc_item_power(m, b.ordinal)
-#                item_power[b.item_id] += power
-#                total_power += power
-#
-#            for id in updated_ids:
-#                item_building[id].append(
-#                    Building(t, item_built[id], int2exp(item_power[id]))
-#                )
-#
-#        if updated:
-#            schedule.append(
-#                Schedule(t, int2exp(total_milli_isu), int2exp(total_power)),
-#            )
-#
-#        # 時刻 t で購入可能になったアイテムを記録する
-#        for id in mitems:
-#            if id in item_on_sale:
-#                continue
-#            if total_milli_isu >= item_price[id] * 1000:
-#                item_on_sale[id] = t
 
     gs_addings = list(adding_at.values())
 
@@ -415,6 +398,12 @@ def get_status(room_name: str) -> dict:
     conn = connect_db()
     try:
         current_time = update_room_time_shared_lock(conn, room_name)
+        r = get_redis()
+
+        last_updated_at = r.get("last_updated_at:%s" % room_name)
+        if last_updated_at is None:
+            last_updated_at = 0
+
 
         dcur = conn.cursor(MySQLdb.cursors.DictCursor)
         dcur.execute("SELECT * FROM m_item")
@@ -422,19 +411,24 @@ def get_status(room_name: str) -> dict:
         dcur.close()
 
         cur = conn.cursor()
-        cur.execute("SELECT time, isu FROM adding WHERE room_name=%s", (room_name,))
+        cur.execute("SELECT time, isu FROM adding WHERE room_name=%s AND time > %s", (room_name, last_updated_at))
         addings = [Adding(t, i) for (t, i) in cur]
+        # print("last_updated_at: {0}".format(last_updated_at))
+        # print("addings: {0}".format(addings))
 
-        cur.execute("SELECT item_id, ordinal, time FROM buying WHERE room_name=%s", (room_name,))
+        cur.execute("SELECT item_id, ordinal, time FROM buying WHERE room_name=%s AND time > %s", (room_name, last_updated_at))
         buyings = [Buying(i, o, t) for (i, o, t) in cur]
 
         update_room_time_shared_lock_end(conn, room_name, current_time)
 
         conn.commit()
 
-        status = calc_status(current_time, mitems, addings, buyings)
+        status = calc_status(current_time, mitems, addings, buyings, room_name, last_updated_at)
         # calcStatusに時間がかかる可能性があるので タイムスタンプを取得し直す
-        status = status._replace(time=get_current_time(conn))
+        current_time = get_current_time(conn)
+        status = status._replace(time=current_time)
+        r.set("last_updated_at:%s" % room_name, current_time)
+
         return status
     finally:
         conn.close()
