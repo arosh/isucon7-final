@@ -148,7 +148,7 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
 
     for i in range(N):
         t = ts[i]
-        nt = 1001
+        nt = current_time + 1001
         if (i+1 < N):
             nt = ts[i+1]
         
@@ -192,7 +192,7 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
                 l, r = t-1, nt-1
                 while r - l > 1:
                     mid = (l+r)//2
-                    if (total_milli_isu + (mid-1 - t) * total_power >= item_price[id] * 1000):
+                    if (total_milli_isu + (mid - t) * total_power >= item_price[id] * 1000):
                         r = mid
                     else:
                         l = mid
