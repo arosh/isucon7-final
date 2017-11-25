@@ -491,7 +491,7 @@ async def serve(ws: 'aiohttp.web.WebSocketResponse', room_name: str):
         except asyncio.TimeoutError:
             continue
 
-        print(f"received request: {request}")
+        #print(f"received request: {request}")
         request_id: int = int(request["request_id"])
         action: str = str(request["action"])
         reqtime: int = int(request["time"])
