@@ -12,17 +12,22 @@ if [ -e conf/nginx.conf ]; then
 fi
 
 # MySQL
-#if [ -e /var/log/mysql/mysql-slow.log ]; then
-#  mv /var/log/mysql/mysql-slow.log /var/log/mysql/mysql-slow.log.$now
-#fi
-#
-#if [ "$(pgrep mysql | wc -l)" ]; then
-#  mysqladmin -uroot -ppassword flush-logs
-#fi
-#
-#if [ -e conf/my.cnf ]; then
-#  cp conf/my.cnf /etc/mysql/my.cnf
-#fi
+if [ -e /var/log/mysql/mysql-slow.log ]; then
+  mv /var/log/mysql/mysql-slow.log /var/log/mysql/mysql-slow.log.$now
+fi
+
+if [ "$(pgrep mysql | wc -l)" ]; then
+  mysqladmin -uroot -ppassword flush-logs
+fi
+
+if [ -e conf/my.cnf ]; then
+  cp conf/my.cnf /etc/mysql/my.cnf
+fi
+
+# Python
+if [ -e conf/cco.python.service ]; then
+  cp conf/cco.python.service /etc/systemd/system/cco.python.service
+fi
 
 # system
 #if [ -e conf/sysctl.conf ]; then
@@ -42,5 +47,5 @@ fi
 
 systemctl daemon-reload
 systemctl reload nginx
-systemctl restart mysql
-journalctl -f -u nginx -u mysql
+systemctl restart mysql cco.python
+journalctl -f -u nginx -u mysql -u cco.python
