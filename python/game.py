@@ -132,9 +132,29 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
     # current_time の状態
     schedule = [Schedule(current_time, int2exp(total_milli_isu), int2exp(total_power))]
 
-    # current_time+1000 までの状態
-    for t in range(current_time+1, current_time+1001):
-        total_milli_isu += total_power
+    ts = set()
+    ts.add(0)
+    for t in adding_at.keys():
+        if (t <= current_time + 1000):
+            ts.add(t)
+    
+    for t in buying_at.keys():
+        if (t <= current_time + 1000):
+            ts.add(t)
+    
+    ts = list(sorted(ts))
+    N = len(ts)
+    ct = current_time
+
+    for i in range(N):
+        t = ts[i]
+        nt = 1001
+        if (i+1 < N):
+            nt = ts[i+1]
+        
+        total_milli_isu += total_power * (t - ct)
+        ct = t
+        
         updated = False
 
         if t in adding_at:
@@ -168,8 +188,54 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
         for id in mitems:
             if id in item_on_sale:
                 continue
-            if total_milli_isu >= item_price[id] * 1000:
-                item_on_sale[id] = t
+            if total_milli_isu + (nt-1 - t) * total_power >= item_price[id] * 1000:
+                l, r = t-1, nt-1
+                while r - l > 1:
+                    mid = (l+r)//2
+                    if (total_milli_isu + (mid-1 - t) * total_power >= item_price[id] * 1000):
+                        r = mid
+                    else:
+                        l = mid
+                item_on_sale[id] = r
+
+#    # current_time+1000 までの状態
+#    for t in range(current_time+1, current_time+1001):
+#        total_milli_isu += total_power
+#        updated = False
+#
+#        if t in adding_at:
+#            updated = True
+#            total_milli_isu += int(adding_at[t].isu) * 1000
+#
+#        if t in buying_at:
+#            updated = True
+#            updated_ids = set()
+#
+#            for b in buying_at[t]:
+#                m = mitems[b.item_id]
+#                updated_ids.add(b.item_id)
+#                item_built[b.item_id] += 1
+#
+#                power = calc_item_power(m, b.ordinal)
+#                item_power[b.item_id] += power
+#                total_power += power
+#
+#            for id in updated_ids:
+#                item_building[id].append(
+#                    Building(t, item_built[id], int2exp(item_power[id]))
+#                )
+#
+#        if updated:
+#            schedule.append(
+#                Schedule(t, int2exp(total_milli_isu), int2exp(total_power)),
+#            )
+#
+#        # 時刻 t で購入可能になったアイテムを記録する
+#        for id in mitems:
+#            if id in item_on_sale:
+#                continue
+#            if total_milli_isu >= item_price[id] * 1000:
+#                item_on_sale[id] = t
 
     gs_addings = list(adding_at.values())
 
