@@ -129,10 +129,7 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list, r
     for b in buyings:
         if b.time <= current_time:
             m = mitems[b.item_id]
-            item_bought[b.item_id] += 1
-            redis_client.incr("item_bought:{0}:{1}".format(room_name, b.item_id))
-            total_milli_isu -= calc_item_price(m, b.ordinal) * 1000
-
+            redis_client.incr("item_built:{0}:{1}".format(room_name, b.item_id))
             item_built[b.item_id] += 1
             power = calc_item_power(m, item_bought[b.item_id])
             item_power[b.item_id] += power
@@ -146,10 +143,17 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list, r
         if tmp is None:
             redis_client.set("item_bought:{0}:{1}".format(room_name, item_id), 0)
             item_bought[item_id] = 0
-            item_built[item_id] = 0
         else:
             item_bought[item_id] = int(tmp)
+
+
+        tmp = redis_client.get("item_built:{0}:{1}".format(room_name, item_id))
+        if tmp is None:
+            redis_client.set("item_built:{0}:{1}".format(room_name, item_id), 0)
+            item_built[item_id] = 0
+        else:
             item_built[item_id] = int(tmp)
+
 
         item_power0[item_id] = int2exp(item_power[item_id])
         item_built0[item_id] = item_built[item_id]
@@ -380,6 +384,10 @@ def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> 
 
         cur.execute("INSERT INTO buying(room_name, item_id, ordinal, time) VALUES(%s, %s, %s, %s)",
                     (room_name, item_id, count_bought+1, req_time))
+        redis_client = get_redis()
+        redis_client.incr("item_bought:{0}:{1}".format(room_name, item_id))
+        redis_client.set("total_milli_isu:%s" % room_name, total_milli_isu - cost)
+
     except Exception as e:
         conn.rollback()
         logging.exception("fail to buy item id=%s, bought=%d, time=%s", item_id, count_bought, req_time)
