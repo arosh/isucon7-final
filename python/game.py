@@ -41,6 +41,15 @@ def connect_db():
         }
     return MySQLdb.connect(**_db_info)
 
+def get_m_items():
+    conn = connect_db()
+    cur = conn.cursor(MySQLdb.cursors.DictCursor)
+    cur.execute("SELECT * FROM m_item")
+    m_items = {m["item_id"]: m for m in cur}
+    cur.close()
+    return m_items
+
+m_items = get_m_items()
 
 def initialize():
     conn = connect_db()
@@ -367,17 +376,8 @@ def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> 
         SELECT
             buying.item_id AS item_id,
             buying.ordinal AS ordinal,
-            buying.time AS time,
-            m_item.power1 AS power1,
-            m_item.power2 AS power2,
-            m_item.power3 AS power3,
-            m_item.power4 AS power4,
-            m_item.price1 AS price1,
-            m_item.price2 AS price2,
-            m_item.price3 AS price3,
-            m_item.price4 AS price4
+            buying.time AS time
         FROM buying
-        JOIN m_item ON m_item.item_id = buying.item_id
         WHERE buying.room_name = %s
         '''
         dcur = conn.cursor(MySQLdb.cursors.DictCursor)
@@ -388,14 +388,13 @@ def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> 
             buy_item_id = buying['item_id']
             ordinal = buying['ordinal']
             item_time = buying['time']
-            cost = calc_item_price(buying, ordinal)
+            cost = calc_item_price(m_items[buy_item_id], ordinal)
             total_milli_isu -= cost * 1000
             if item_time < req_time:
-                power = calc_item_power(buying, ordinal)
+                power = calc_item_power(m_items[buy_item_id], ordinal)
                 total_milli_isu += power * (req_time - item_time)
 
-        dcur.execute("SELECT * FROM m_item WHERE item_id=%s", (item_id,))
-        mitem = dcur.fetchone()
+        mitem = m_items[item_id]
         cost = calc_item_price(mitem, count_bought+1) * 1000
         if total_milli_isu < cost:
             conn.rollback()
@@ -435,11 +434,6 @@ def get_status(room_name: str) -> dict:
     try:
         current_time = update_room_time_shared_lock(conn, room_name)
 
-        dcur = conn.cursor(MySQLdb.cursors.DictCursor)
-        dcur.execute("SELECT * FROM m_item")
-        mitems = {m["item_id"]: m for m in dcur}
-        dcur.close()
-
         cur = conn.cursor()
         cur.execute("SELECT time, isu FROM adding WHERE room_name=%s", (room_name,))
         addings = [Adding(t, i) for (t, i) in cur]
@@ -448,10 +442,9 @@ def get_status(room_name: str) -> dict:
         buyings = [Buying(i, o, t) for (i, o, t) in cur]
 
         update_room_time_shared_lock_end(conn, room_name, current_time)
-
         conn.commit()
 
-        status = calc_status(current_time, mitems, addings, buyings)
+        status = calc_status(current_time, m_items, addings, buyings)
         # calcStatusに時間がかかる可能性があるので タイムスタンプを取得し直す
         status = status._replace(time=get_current_time(conn))
         return status
