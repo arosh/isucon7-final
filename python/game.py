@@ -259,6 +259,11 @@ def calc_status(current_time: int, mitems: dict, addings: list, buyings: list):
         gs_on_sale)
 
 
+def touch_room_time(conn, room_name):
+    cur = conn.cursor()
+    cur.execute("INSERT INTO room_time(room_name, time) VALUES (%s, 0) ON DUPLICATE KEY UPDATE time = time", (room_name, ))
+
+
 def update_room_time(conn, room_name: str, req_time: int) -> int:
     """部屋のロックを取りタイムスタンプを更新する
 
@@ -267,10 +272,7 @@ def update_room_time(conn, room_name: str, req_time: int) -> int:
     状態になることに注意 (keyword: MVCC, repeatable read).
     """
     cur = conn.cursor()
-
     # See page 13 and 17 in https://www.slideshare.net/ichirin2501/insert-51938787
-    cur.execute("INSERT INTO room_time(room_name, time) VALUES (%s, 0) ON DUPLICATE KEY UPDATE time = time", (room_name, ))
-
     cur.execute("SELECT time FROM room_time WHERE room_name = %s FOR UPDATE", (room_name, ))
     room_time = cur.fetchone()[0]
 
@@ -288,7 +290,6 @@ def update_room_time(conn, room_name: str, req_time: int) -> int:
 
 def update_room_time_shared_lock(conn, room_name: str) -> int:
     cur = conn.cursor()
-    cur.execute("INSERT INTO room_time(room_name, time) VALUES (%s, 0) ON DUPLICATE KEY UPDATE time = time", (room_name, ))
     cur.execute("SELECT time FROM room_time WHERE room_name = %s LOCK IN SHARE MODE", (room_name, ))
     current_time = get_current_time(conn)
     return current_time
@@ -309,6 +310,8 @@ def add_isu(room_name: str, req_time: int, num_isu: int) -> bool:
     #print(f"add_isu(room_name={room_name}, req_time={req_time})")
     conn = connect_db()
     try:
+        touch_room_time(conn, room_name)
+        conn.commit()
         update_room_time(conn, room_name, req_time)
         cur = conn.cursor()
         cur.execute("INSERT INTO adding(room_name, time, isu) VALUES (%s, %s, '0') ON DUPLICATE KEY UPDATE isu=isu",
@@ -344,6 +347,8 @@ def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> 
     #print(f"buy_item({room_name}, {req_time}, {item_id}, {count_bought})")
     conn = connect_db()
     try:
+        touch_room_time(conn, room_name)
+        conn.commit()
         update_room_time(conn, room_name, req_time)
         cur = conn.cursor()
         dcur = conn.cursor(MySQLdb.cursors.DictCursor)
@@ -414,6 +419,8 @@ def get_status_profile(room_name: str) -> dict:
 def get_status(room_name: str) -> dict:
     conn = connect_db()
     try:
+        touch_room_time(conn, room_name)
+        conn.commit()
         current_time = update_room_time_shared_lock(conn, room_name)
 
         dcur = conn.cursor(MySQLdb.cursors.DictCursor)
