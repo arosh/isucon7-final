@@ -222,6 +222,7 @@ def update_room_time(conn, room_name: str, req_time: int) -> int:
 
 
 def add_isu(room_name: str, req_time: int, num_isu: int) -> bool:
+    profiler = start_profile()
     #print(f"add_isu(room_name={room_name}, req_time={req_time})")
     conn = connect_db()
     try:
@@ -246,9 +247,11 @@ def add_isu(room_name: str, req_time: int, num_isu: int) -> bool:
         return True
     finally:
         conn.close()
+        end_profile(profiler)
 
 
 def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> bool:
+    profiler = start_profile()
     #print(f"buy_item({room_name}, {req_time}, {item_id}, {count_bought})")
     conn = connect_db()
     try:
@@ -302,6 +305,7 @@ def buy_item(room_name: str, req_time: int, item_id: int, count_bought: int) -> 
         return True
     finally:
         conn.close()
+        end_profile(profiler)
 
 
 def get_current_time(conn) -> int:
@@ -312,6 +316,7 @@ def get_current_time(conn) -> int:
 
 
 def get_status(room_name: str) -> dict:
+    profiler = start_profile()
     conn = connect_db()
     try:
         current_time = update_room_time(conn, room_name, 0)
@@ -336,7 +341,20 @@ def get_status(room_name: str) -> dict:
         return status
     finally:
         conn.close()
+        end_profile(profiler)
 
+import cProfile
+profile_dir = '/tmp/profile'
+
+def start_profile():
+    profiler = cProfile.Profile()
+    profiler.enable()
+    return profiler
+
+def end_profile(profiler):
+    profiler.disable()
+    prof_filename = os.path.join(profile_dir, '%d.prof' % time.time())
+    profiler.dump_stats(prof_filename)
 
 async def serve(ws: 'aiohttp.web.WebSocketResponse', room_name: str):
     loop = asyncio.get_event_loop()
