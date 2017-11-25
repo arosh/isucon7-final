@@ -4,7 +4,7 @@ Description = isucon7final main application in python
 [Service]
 WorkingDirectory=/home/isucon/webapp/python/
 EnvironmentFile=/home/isucon/env.sh
-ExecStart = /home/isucon/local/python/bin/python app.py
+ExecStart = /home/isucon/local/python/bin/gunicorn app:app -b :5000 -w 2 --worker-class aiohttp.worker.GunicornWebWorker
 
 Restart   = always
 Type      = simple
