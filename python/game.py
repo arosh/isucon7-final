@@ -224,7 +224,7 @@ def update_room_time(conn, room_name: str, req_time: int) -> int:
 def add_isu_profile(room_name: str, req_time: int, num_isu: int) -> bool:
     profiler = start_profile()
     try:
-        add_isu(room_name, req_time, num_isu)
+        return add_isu(room_name, req_time, num_isu)
     finally:
         end_profile(profiler)
 
@@ -259,7 +259,7 @@ def add_isu(room_name: str, req_time: int, num_isu: int) -> bool:
 def buy_item_profile(room_name: str, req_time: int, item_id: int, count_bought: int) -> bool:
     profiler = start_profile()
     try:
-        buy_item(room_name, req_time, item_id, count_bought)
+        return buy_item(room_name, req_time, item_id, count_bought)
     finally:
         end_profile(profiler)
 
