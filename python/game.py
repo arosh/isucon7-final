@@ -436,7 +436,7 @@ def get_status(room_name: str) -> dict:
         current_time = update_room_time_shared_lock(conn, room_name)
 
         dcur = conn.cursor(MySQLdb.cursors.DictCursor)
-        dcur.execute("SELECT item_id FROM m_item")
+        dcur.execute("SELECT * FROM m_item")
         mitems = {m["item_id"]: m for m in dcur}
         dcur.close()
 
