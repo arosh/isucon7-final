@@ -442,15 +442,21 @@ def get_status(room_name: str) -> dict:
 import cProfile
 profile_dir = '/tmp/profile'
 
+enable_profile = False
+
 def start_profile():
-    profiler = cProfile.Profile()
-    profiler.enable()
-    return profiler
+    if enable_profile:
+        profiler = cProfile.Profile()
+        profiler.enable()
+        return profiler
+    else:
+        return None
 
 def end_profile(profiler):
-    profiler.disable()
-    prof_filename = os.path.join(profile_dir, '%d.prof' % time.time())
-    profiler.dump_stats(prof_filename)
+    if enable_profile:
+        profiler.disable()
+        prof_filename = os.path.join(profile_dir, '%d.prof' % time.time())
+        profiler.dump_stats(prof_filename)
 
 async def serve(ws: 'aiohttp.web.WebSocketResponse', room_name: str):
     loop = asyncio.get_event_loop()
